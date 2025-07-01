@@ -1,0 +1,1020 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Inspector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* --- Base & Variables --- */
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --panel-bg-color: #ffffff;
+            --border-color: #dee2e6;
+            --primary-color: #4a90e2;
+            --primary-hover: #357abd;
+            --secondary-color: #6c757d;
+            --secondary-hover: #5a6268;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --highlight-bg: #ffe066;
+            --highlight-text: #333;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 8px;
+        }
+
+        body[data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --panel-bg-color: #1e1e1e;
+            --border-color: #333333;
+            --primary-hover: #63a4ff;
+            --secondary-color: #888888;
+            --secondary-hover: #a0a0a0;
+            --highlight-bg: #b38600;
+            --highlight-text: #fff;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* --- Layout --- */
+        .app-header {
+            background-color: var(--panel-bg-color);
+            padding: 16px 32px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .main-content {
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        .app-footer {
+            padding: 24px 32px;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--panel-bg-color);
+            color: var(--secondary-color);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        /* --- Panels & Containers --- */
+        .panel {
+            background-color: var(--panel-bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 24px;
+            box-shadow: var(--box-shadow);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .controls-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* --- Typography & Widgets --- */
+        .app-title {
+            font-size: 1.75em;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .global-search-container input {
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 1em;
+            width: 350px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s, color 0.3s;
+        }
+
+        .global-search-container input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
+            outline: none;
+        }
+
+        #jsonEditor {
+            width: 100%;
+            min-height: 200px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            resize: vertical;
+            padding: 16px;
+            font-size: 0.95em;
+            box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+
+        #jsonEditor.invalid {
+            border-color: var(--danger-color);
+        }
+
+        .validation-message {
+            color: var(--danger-color);
+            font-size: 0.9em;
+            margin-top: 8px;
+            height: 1em;
+        }
+
+        /* --- Buttons --- */
+        button {
+            padding: 10px 20px;
+            border: 1px solid transparent;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        #loadPrimaryFileBtn, #globalSearchBtn, #applyFilterBtn {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        #loadPrimaryFileBtn:hover, #globalSearchBtn:hover, #applyFilterBtn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        #loadLookupFileBtn, #clearFilterBtn {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        #loadLookupFileBtn:hover, #clearFilterBtn:hover {
+            background-color: var(--secondary-hover);
+        }
+
+        .export-container button {
+            background-color: var(--success-color);
+            color: white;
+        }
+        .export-container button:hover {
+            background-color: #218838;
+        }
+
+        #resetAllBtn {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        #resetAllBtn:hover {
+            background-color: #c82333;
+        }
+        
+        .theme-switcher {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2em;
+            color: var(--text-color);
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+        .theme-switcher:hover {
+            background-color: var(--bg-color);
+        }
+
+        th.drag-over {
+            background-color: var(--primary-color) !important;
+            color: white;
+        }
+
+        /* --- Table --- */
+        .table-container {
+            max-height: 60vh;
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+            white-space: nowrap;
+            transition: border-color 0.3s;
+        }
+
+        thead th {
+            background-color: var(--panel-bg-color);
+            position: sticky;
+            top: 0;
+            font-weight: 600;
+            cursor: grab;
+            z-index: 10;
+            transition: background-color 0.3s;
+        }
+
+        th .filter-icon {
+            margin-left: 8px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+        }
+
+        th:hover .filter-icon {
+            opacity: 1;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background-color: color-mix(in srgb, var(--bg-color) 80%, var(--text-color));
+        }
+
+        /* --- Filter Dropdown --- */
+        .filter-dropdown {
+            position: absolute;
+            background-color: var(--panel-bg-color);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--box-shadow);
+            border-radius: var(--border-radius);
+            padding: 16px;
+            z-index: 1010;
+            display: none;
+            min-width: 300px;
+            color: var(--text-color);
+        }
+        
+        .filter-dropdown input, .filter-dropdown select, .filter-dropdown textarea {
+             width: 100%;
+             padding: 8px;
+             border-radius: 4px;
+             border: 1px solid var(--border-color);
+             background-color: var(--bg-color);
+             color: var(--text-color);
+             box-sizing: border-box;
+        }
+
+        .filter-group {
+            margin-bottom: 12px;
+        }
+
+        .filter-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 16px;
+        }
+
+        /* --- Other Components --- */
+        .status-pill {
+            font-size: 0.9em;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--secondary-color);
+            padding: 6px 14px;
+            border-radius: 16px;
+            margin-left: 12px;
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+
+        .summary-panel {
+            margin-top: 16px;
+            padding: 14px;
+            background-color: color-mix(in srgb, var(--bg-color) 85%, black);
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+
+        .highlight {
+            background-color: var(--highlight-bg);
+            color: var(--highlight-text);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <noscript>
+        <div class="no-js-message">This application requires JavaScript. Please enable it to continue.</div>
+    </noscript>
+
+    <header class="app-header">
+        <h1 class="app-title">Data Inspector</h1>
+        <div class="header-controls">
+            <div class="global-search-container">
+                <input type="text" id="globalSearchInput" placeholder="Search all columns...">
+                <button id="globalSearchBtn">Search</button>
+            </div>
+            <button id="themeSwitcherBtn" class="theme-switcher">🌙</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="panel upper-panel">
+            <div class="json-editor-container">
+                <textarea id="jsonEditor" placeholder="Paste JSON here or upload a file..."></textarea>
+                <div id="jsonValidationMessage" class="validation-message"></div>
+            </div>
+            <div class="primary-uploader">
+                <button id="loadPrimaryFileBtn">Load Data</button>
+                <input type="file" id="primaryFileInput" accept=".json,.csv,.xls,.xlsx" style="display: none;">
+            </div>
+        </div>
+
+        <div class="panel lower-panel">
+            <div class="controls-bar">
+                <div class="export-container">
+                    <button id="exportJsonBtn">Export JSON</button>
+                    <button id="exportCsvBtn">Export CSV</button>
+                    <button id="exportXlsxBtn">Export Excel</button>
+                </div>
+                <div id="lookupContainer" class="lookup-container">
+                    <button id="loadLookupFileBtn">Load Lookup</button>
+                    <input type="file" id="lookupFileInput" accept=".json,.csv,.xls,.xlsx" style="display: none;">
+                    <span id="lookupStatus" class="status-pill"></span>
+                </div>
+            </div>
+            <div id="tableContainer" class="table-container">
+                <!-- Dynamic table will be rendered here -->
+            </div>
+            <div id="summaryPanel" class="summary-panel">
+                <!-- Comparison summary will appear here -->
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <button id="resetAllBtn">Reset All</button>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- THEME SWITCHER ---
+            const themeSwitcherBtn = document.getElementById('themeSwitcherBtn');
+            const body = document.body;
+
+            const setTheme = (theme) => {
+                body.setAttribute('data-theme', theme);
+                themeSwitcherBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+                localStorage.setItem('theme', theme);
+            };
+
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            setTheme(savedTheme);
+
+            themeSwitcherBtn.addEventListener('click', () => {
+                const currentTheme = body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                setTheme(newTheme);
+            });
+
+            // --- ORIGINAL SCRIPT ---
+            // DOM Elements
+            const jsonEditor = document.getElementById('jsonEditor');
+            const loadPrimaryFileBtn = document.getElementById('loadPrimaryFileBtn');
+            const primaryFileInput = document.getElementById('primaryFileInput');
+            const loadLookupFileBtn = document.getElementById('loadLookupFileBtn');
+            const lookupFileInput = document.getElementById('lookupFileInput');
+            const globalSearchInput = document.getElementById('globalSearchInput');
+            const globalSearchBtn = document.getElementById('globalSearchBtn');
+            const resetAllBtn = document.getElementById('resetAllBtn');
+            const tableContainer = document.getElementById('tableContainer');
+            const summaryPanel = document.getElementById('summaryPanel');
+            const lookupStatus = document.getElementById('lookupStatus');
+            const jsonValidationMessage = document.getElementById('jsonValidationMessage');
+
+            const exportJsonBtn = document.getElementById('exportJsonBtn');
+            const exportCsvBtn = document.getElementById('exportCsvBtn');
+            const exportXlsxBtn = document.getElementById('exportXlsxBtn');
+
+            // State
+            let primaryData = [];
+            let lookupData = [];
+            let flattenedData = [];
+            let activeFilters = {};
+            let columnOrder = [];
+
+            // Event Listeners
+            loadPrimaryFileBtn.addEventListener('click', () => primaryFileInput.click());
+            primaryFileInput.addEventListener('change', (e) => handleFileSelect(e, true));
+
+            loadLookupFileBtn.addEventListener('click', () => lookupFileInput.click());
+            lookupFileInput.addEventListener('change', (e) => handleFileSelect(e, false));
+
+            jsonEditor.addEventListener('input', validateAndProcessJson);
+
+            globalSearchBtn.addEventListener('click', applyGlobalSearch);
+            globalSearchInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') applyGlobalSearch();
+            });
+
+            resetAllBtn.addEventListener('click', resetAll);
+
+            exportJsonBtn.addEventListener('click', () => exportData('json'));
+            exportCsvBtn.addEventListener('click', () => exportData('csv'));
+            exportXlsxBtn.addEventListener('click', () => exportData('xlsx'));
+
+            function handleFileSelect(event, isPrimary) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const data = e.target.result;
+                    try {
+                        if (file.name.endsWith('.json')) {
+                            const jsonData = JSON.parse(data);
+                            if (isPrimary) {
+                                jsonEditor.value = JSON.stringify(jsonData, null, 2);
+                                processJsonData(jsonData);
+                            } else {
+                                lookupData = flattenData(jsonData);
+                                updateLookupStatus(file.name, lookupData);
+                            }
+                        } else if (file.name.endsWith('.csv')) {
+                            const parsedData = parseCsv(data);
+                            if (isPrimary) {
+                                jsonEditor.value = JSON.stringify(parsedData, null, 2);
+                                renderFlatData(parsedData);
+                            } else {
+                                lookupData = parsedData;
+                                updateLookupStatus(file.name, lookupData);
+                            }
+                        } else if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+                            const workbook = XLSX.read(data, { type: 'binary' });
+                            const sheetName = workbook.SheetNames[0];
+                            const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                            if (isPrimary) {
+                                jsonEditor.value = JSON.stringify(sheetData, null, 2);
+                                renderFlatData(sheetData);
+                            } else {
+                                lookupData = sheetData;
+                                updateLookupStatus(file.name, lookupData);
+                            }
+                        }
+                    } catch (error) {
+                        alert(`Error processing file: ${error.message}`);
+                    }
+                };
+                reader.onerror = () => alert('Error reading file.');
+
+                if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+                    reader.readAsBinaryString(file);
+                } else {
+                    reader.readAsText(file);
+                }
+            }
+
+            function validateAndProcessJson() {
+                try {
+                    const jsonData = JSON.parse(jsonEditor.value);
+                    jsonValidationMessage.textContent = '';
+                    jsonEditor.classList.remove('invalid');
+                    processJsonData(jsonData);
+                } catch (e) {
+                    jsonValidationMessage.textContent = 'Invalid JSON format';
+                    jsonEditor.classList.add('invalid');
+                }
+            }
+
+            function processJsonData(jsonData) {
+                primaryData = jsonData;
+                flattenAndRenderTable(primaryData);
+            }
+
+            function parseCsv(data) {
+                const rows = data.trim().split(/\r?\n/);
+                const headers = rows.shift().split(',').map(h => h.trim());
+                return rows.map(row => {
+                    const values = row.split(',').map(v => v.trim());
+                    return headers.reduce((obj, header, i) => {
+                        obj[header] = values[i];
+                        return obj;
+                    }, {});
+                });
+            }
+
+            function updateLookupStatus(filename, data) {
+                const rowCount = data.length;
+                const colCount = data.length > 0 ? Object.keys(data[0]).length : 0;
+                lookupStatus.textContent = `Lookup: ${filename} (${rowCount} rows, ${colCount} cols)`;
+            }
+
+            function renderFlatData(data) {
+                primaryData = data;
+                flattenedData = data;
+                columnOrder = Array.from(data.reduce((acc, row) => {
+                    Object.keys(row).forEach(key => acc.add(key));
+                    return acc;
+                }, new Set()));
+                renderTable(flattenedData);
+            }
+
+            function flattenAndRenderTable(data) {
+                flattenedData = flattenData(data);
+                columnOrder = Array.from(flattenedData.reduce((acc, row) => {
+                    Object.keys(row).forEach(key => acc.add(key));
+                    return acc;
+                }, new Set()));
+                renderTable(flattenedData);
+            }
+
+            function flattenData(data) {
+                const allRows = [];
+                const dataArray = Array.isArray(data) ? data : [data];
+
+                function processObject(obj, baseData) {
+                    const currentRowData = { ...baseData };
+                    const arraysToExpand = [];
+
+                    for (const key in obj) {
+                        if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+                        const value = obj[key];
+
+                        if (Array.isArray(value) && value.length > 0 && value.every(i => typeof i === 'object' && i !== null)) {
+                            arraysToExpand.push(value);
+                        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                            Object.assign(currentRowData, flattenNestedObject(value, key));
+                        } else if (!Array.isArray(value)) {
+                            currentRowData[key] = value;
+                        }
+                    }
+
+                    if (arraysToExpand.length === 0) {
+                        allRows.push(currentRowData);
+                    } else {
+                        arraysToExpand.forEach(array => {
+                            array.forEach(item => {
+                                processObject(item, currentRowData);
+                            });
+                        });
+                    }
+                }
+
+                function flattenNestedObject(obj, prefix) {
+                    const result = {};
+                    for (const key in obj) {
+                        if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+                        const newKey = `${prefix}.${key}`;
+                        const value = obj[key];
+
+                        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                            Object.assign(result, flattenNestedObject(value, newKey));
+                        } else if (!Array.isArray(value)) {
+                            result[newKey] = value;
+                        }
+                    }
+                    return result;
+                }
+
+                dataArray.forEach(item => processObject(item, {}));
+                return allRows;
+            }
+
+            function renderTable(data) {
+                const headers = columnOrder;
+
+                if (headers.length === 0) {
+                    tableContainer.innerHTML = '<p style="text-align:center; color:var(--secondary-color);">Load data to begin.</p>';
+                    return;
+                }
+
+                let tableHtml = '<table><thead><tr>';
+                headers.forEach(header => {
+                    tableHtml += `<th data-column="${header}">${header}<span class="filter-icon">▼</span></th>`;
+                });
+                tableHtml += '</tr></thead><tbody>';
+
+                if (!data || data.length === 0) {
+                    tableHtml += `<tr><td colspan="${headers.length}" style="text-align:center; color:var(--secondary-color); padding: 20px;">No records match the current filters.</td></tr>`;
+                } else {
+                    data.forEach(row => {
+                        tableHtml += '<tr>';
+                        headers.forEach(header => {
+                            const value = row[header] === undefined || row[header] === null ? '' : row[header];
+                            if (typeof value === 'object' && value !== null && value.hasOwnProperty('original')) {
+                                if (value.equal) {
+                                    tableHtml += `<td style="color:var(--success-color);">${value.original}</td>`;
+                                } else {
+                                    tableHtml += `<td style="color:var(--danger-color);">${value.original} ≠ ${value.lookup}</td>`;
+                                }
+                            } else {
+                                tableHtml += `<td>${value}</td>`;
+                            }
+                        });
+                        tableHtml += '</tr>';
+                    });
+                }
+
+                tableHtml += '</tbody></table>';
+                tableContainer.innerHTML = tableHtml;
+                setupFilterListeners();
+                setupDragAndDrop();
+            }
+
+            function setupFilterListeners() {
+                document.querySelectorAll('th .filter-icon').forEach(icon => {
+                    icon.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const th = e.currentTarget.closest('th');
+                        const column = th.dataset.column;
+                        if (column) {
+                            createFilterDropdown(th, column);
+                        }
+                    });
+                });
+            }
+
+            function setupDragAndDrop() {
+                const headers = document.querySelectorAll('th[data-column]');
+                let draggedColumn = null;
+
+                headers.forEach(header => {
+                    header.setAttribute('draggable', true);
+
+                    header.addEventListener('dragstart', (e) => {
+                        e.stopPropagation();
+                        draggedColumn = header.dataset.column;
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', draggedColumn);
+                        setTimeout(() => {
+                            header.style.opacity = '0.5';
+                        }, 0);
+                    });
+
+                    header.addEventListener('dragend', () => {
+                        header.style.opacity = '1';
+                        draggedColumn = null;
+                        headers.forEach(h => h.classList.remove('drag-over'));
+                    });
+
+                    header.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        headers.forEach(h => h.classList.remove('drag-over'));
+                        header.classList.add('drag-over');
+                    });
+
+                    header.addEventListener('dragleave', () => {
+                        header.classList.remove('drag-over');
+                    });
+
+                    header.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const targetColumn = header.dataset.column;
+                        if (draggedColumn && draggedColumn !== targetColumn) {
+                            const sourceIndex = columnOrder.indexOf(draggedColumn);
+                            const targetIndex = columnOrder.indexOf(targetColumn);
+
+                            if (sourceIndex > -1 && targetIndex > -1) {
+                                const [movedColumn] = columnOrder.splice(sourceIndex, 1);
+                                columnOrder.splice(targetIndex, 0, movedColumn);
+                                applyAllFilters();
+                            }
+                        }
+                        header.classList.remove('drag-over');
+                    });
+                });
+            }
+
+            function createFilterDropdown(target, column) {
+                const existingDropdown = document.getElementById('filterDropdown');
+                if (existingDropdown) existingDropdown.remove();
+
+                const dropdown = document.createElement('div');
+                dropdown.id = 'filterDropdown';
+                dropdown.className = 'filter-dropdown';
+                dropdown.addEventListener('click', e => e.stopPropagation());
+
+                let lookupOptions = '';
+                if (lookupData.length > 0) {
+                    const lookupColumnSet = new Set();
+                    lookupData.forEach(row => {
+                        Object.keys(row).forEach(key => lookupColumnSet.add(key));
+                    });
+                    const lookupColumns = Array.from(lookupColumnSet).sort();
+
+                    lookupOptions = `
+                        <hr style="border-color: var(--border-color); margin: 12px 0;">
+                        <div class="filter-group">
+                            <label>Compare to Lookup Column</label>
+                            <select id="lookupCompareSelect">
+                                <option value="">Select lookup column...</option>
+                                ${lookupColumns.map(col => `<option value="${col}">${col}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                }
+
+                dropdown.innerHTML = `
+                    <h4>Filter: ${column}</h4>
+                    <div class="filter-group">
+                        <label for="filterType">Operator</label>
+                        <select id="filterType">
+                            <option value="contains">Contains</option>
+                            <option value="not_contains">Does not contain</option>
+                            <option value="eq">Equals</option>
+                            <option value="neq">Not equal to</option>
+                            <option value="gt">Greater than (&gt;)</option>
+                            <option value="lt">Less than (&lt;)</option>
+                            <option value="gte">Greater than or equal (≥)</option>
+                            <option value="lte">Less than or equal (≤)</option>
+                            <option value="is_null">Is null</option>
+                            <option value="is_not_null">Is not null</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterValue">Value</label>
+                        <input type="text" id="filterValue">
+                    </div>
+                    <hr style="border-color: var(--border-color); margin: 12px 0;">
+                    <h4>Create New Column from Match</h4>
+                    <div class="filter-group">
+                        <label for="newColumnName">New Column Name</label>
+                        <input type="text" id="newColumnName" placeholder="e.g., Matched Keyword">
+                    </div>
+                    <div class="filter-group">
+                        <label for="matchKeywords">Keywords (comma-separated)</label>
+                        <textarea id="matchKeywords" rows="3" placeholder="e.g., word1,word2,word3" style="resize: vertical;"></textarea>
+                    </div>
+                    ${lookupOptions}
+                    <div class="filter-actions">
+                        <button id="applyFilterBtn">Apply</button>
+                        <button id="clearFilterBtn">Clear</button>
+                    </div>
+                `;
+
+                document.body.appendChild(dropdown);
+
+                const rect = target.getBoundingClientRect();
+                dropdown.style.display = 'block';
+                dropdown.style.top = `${rect.bottom + window.scrollY + 5}px`;
+                dropdown.style.left = `${rect.left + window.scrollX}px`;
+
+                document.getElementById('applyFilterBtn').addEventListener('click', () => {
+                    const type = document.getElementById('filterType').value;
+                    const value = document.getElementById('filterValue').value;
+                    const lookupSelect = document.getElementById('lookupCompareSelect');
+                    const lookupColumn = lookupSelect ? lookupSelect.value : '';
+                    const newColumnName = document.getElementById('newColumnName').value.trim();
+                    const matchKeywords = document.getElementById('matchKeywords').value.trim();
+
+                    if (newColumnName && matchKeywords) {
+                        addDerivedColumn(column, newColumnName, matchKeywords);
+                    } else if (lookupColumn) {
+                        addComparisonColumn(column, lookupColumn);
+                    } else {
+                        activeFilters[column] = { type, value };
+                        applyAllFilters();
+                    }
+                    dropdown.remove();
+                });
+
+                document.getElementById('clearFilterBtn').addEventListener('click', () => {
+                    delete activeFilters[column];
+                    const comparisonColName = `${column} vs`;
+                    columnOrder = columnOrder.filter(col => !col.startsWith(comparisonColName));
+                    applyAllFilters();
+                    summaryPanel.innerHTML = '';
+                    dropdown.remove();
+                });
+
+                setTimeout(() => {
+                    document.addEventListener('click', () => dropdown.remove(), { once: true });
+                }, 0);
+            }
+
+            function addDerivedColumn(baseColumn, newColumnName, keywords) {
+                const keywordList = keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k);
+                if (keywordList.length === 0) return;
+
+                if (!columnOrder.includes(newColumnName)) {
+                    const baseIndex = columnOrder.indexOf(baseColumn);
+                    if (baseIndex !== -1) {
+                        columnOrder.splice(baseIndex + 1, 0, newColumnName);
+                    } else {
+                        columnOrder.push(newColumnName);
+                    }
+                }
+
+                flattenedData.forEach(row => {
+                    const cellValue = String(row[baseColumn] || '').toLowerCase();
+                    const foundKeyword = keywordList.find(kw => cellValue.includes(kw));
+                    if (foundKeyword) {
+                        row[newColumnName] = foundKeyword;
+                    } else if (row[newColumnName] === undefined) {
+                        row[newColumnName] = '';
+                    }
+                });
+
+                applyAllFilters();
+            }
+
+            function applyAllFilters() {
+                let data = [...flattenedData];
+
+                const searchTerm = globalSearchInput.value.toLowerCase();
+                if (searchTerm) {
+                    data = data.filter(row => 
+                        Object.values(row).some(val => String(val).toLowerCase().includes(searchTerm))
+                    );
+                }
+
+                for (const column in activeFilters) {
+                    const { type, value } = activeFilters[column];
+                    const filterValue = String(value).toLowerCase();
+
+                    data = data.filter(row => {
+                        const cellValue = row[column];
+                        const cellValueStr = String(cellValue).toLowerCase();
+
+                        switch (type) {
+                            case 'contains': return cellValueStr.includes(filterValue);
+                            case 'not_contains': return !cellValueStr.includes(filterValue);
+                            case 'eq': return cellValueStr === filterValue;
+                            case 'neq': return cellValueStr !== filterValue;
+                            case 'gt': return Number(cellValue) > Number(value);
+                            case 'lt': return Number(cellValue) < Number(value);
+                            case 'gte': return Number(cellValue) >= Number(value);
+                            case 'lte': return Number(cellValue) <= Number(value);
+                            case 'is_null': return cellValue === null || cellValue === undefined || cellValue === '';
+                            case 'is_not_null': return cellValue !== null && cellValue !== undefined && cellValue !== '';
+                            default: return true;
+                        }
+                    });
+                }
+
+                renderTable(data);
+                highlightSearchTerm(searchTerm);
+            }
+
+            function applyGlobalSearch() {
+                applyAllFilters();
+            }
+
+            function highlightSearchTerm(term) {
+                if (!term) return;
+                const cells = tableContainer.querySelectorAll('td');
+                const regex = new RegExp(term, 'gi');
+                cells.forEach(cell => {
+                    cell.innerHTML = cell.textContent.replace(regex, match => `<span class="highlight">${match}</span>`);
+                });
+            }
+
+            function addComparisonColumn(originalColumn, lookupColumn) {
+                const comparisonColName = `${originalColumn} vs ${lookupColumn}`;
+                let matches = 0, mismatches = 0;
+
+                const originalIndex = columnOrder.indexOf(originalColumn);
+                columnOrder = columnOrder.filter(col => !col.startsWith(`${originalColumn} vs`));
+                if (originalIndex !== -1) {
+                    columnOrder.splice(originalIndex + 1, 0, comparisonColName);
+                } else {
+                    columnOrder.push(comparisonColName);
+                }
+
+                flattenedData.forEach((row, index) => {
+                    if (lookupData[index] && lookupData[index][lookupColumn] !== undefined) {
+                        const originalValue = row[originalColumn];
+                        const lookupValue = lookupData[index][lookupColumn];
+                        const areEqual = String(originalValue) === String(lookupValue);
+
+                        if (areEqual) matches++; else mismatches++;
+                        
+                        row[comparisonColName] = {
+                            original: originalValue,
+                            lookup: lookupValue,
+                            equal: areEqual
+                        };
+                    } else {
+                        row[comparisonColName] = { original: row[originalColumn], lookup: 'N/A', equal: false };
+                    }
+                });
+
+                applyAllFilters();
+
+                summaryPanel.innerHTML = `Comparison: <strong>${originalColumn}</strong> vs <strong>${lookupColumn}</strong> | Matches: <span style="color:var(--success-color)">${matches}</span> | Mismatches: <span style="color:var(--danger-color)">${mismatches}</span>`;
+            }
+
+            function resetAll() {
+                primaryData = [];
+                lookupData = [];
+                flattenedData = [];
+                activeFilters = {};
+                columnOrder = [];
+
+                jsonEditor.value = '';
+                jsonEditor.classList.remove('invalid');
+                jsonValidationMessage.textContent = '';
+                primaryFileInput.value = '';
+                lookupFileInput.value = '';
+                globalSearchInput.value = '';
+                tableContainer.innerHTML = '<p style="text-align:center; color:var(--secondary-color);">Load data to begin.</p>';
+                summaryPanel.innerHTML = '';
+                lookupStatus.textContent = '';
+            }
+
+            // Initial state
+            resetAll();
+
+            function getCurrentTableData() {
+                const rows = Array.from(tableContainer.querySelectorAll('tbody tr'));
+                const headers = Array.from(tableContainer.querySelectorAll('th')).map(th => th.dataset.column);
+                
+                return rows.map(row => {
+                    const cells = Array.from(row.cells);
+                    const rowData = {};
+                    headers.forEach((header, i) => {
+                        if (header && cells[i]) {
+                            rowData[header] = cells[i].textContent;
+                        }
+                    });
+                    return rowData;
+                }).filter(row => Object.keys(row).length > 0);
+            }
+
+            function exportData(format) {
+                const data = getCurrentTableData();
+                if (data.length === 0) {
+                    alert("No data to export.");
+                    return;
+                }
+
+                const filename = `export_${new Date().toISOString().split('T')[0]}`;
+
+                if (format === 'json') {
+                    const jsonString = JSON.stringify(data, null, 2);
+                    downloadFile(jsonString, `${filename}.json`, 'application/json');
+                } else if (format === 'csv') {
+                    const csvString = convertToCsv(data);
+                    downloadFile(csvString, `${filename}.csv`, 'text/csv;charset=utf-8;');
+                } else if (format === 'xlsx') {
+                    const worksheet = XLSX.utils.json_to_sheet(data);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+                    XLSX.writeFile(workbook, `${filename}.xlsx`);
+                }
+            }
+
+            function convertToCsv(data) {
+                if (data.length === 0) return "";
+                const headers = Object.keys(data[0]);
+                const headerRow = headers.join(',');
+                const bodyRows = data.map(row => 
+                    headers.map(header => `"${String(row[header] || '').replace(/"/g, '""')}"`).join(',')
+                );
+                return [headerRow, ...bodyRows].join('');
+            }
+
+            function downloadFile(content, filename, contentType) {
+                const blob = new Blob([content], { type: contentType });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+    </script>
+</body>
+</html>
