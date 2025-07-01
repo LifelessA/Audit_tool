@@ -66,7 +66,8 @@ XLSX.js (for Excel file handling)
 No frameworks, no backend required
 
 ## ⚡ Live Demo
-👉 Add link here if hosted (e.g., GitHub Pages, Netlify)
+![image](https://github.com/user-attachments/assets/e424ce49-21eb-45cc-8838-fba2f1b99a26)
+
 
 ## 📝 License
 This project is open-source
